@@ -1,0 +1,3 @@
+Delivery algorithm: Dijkstra
+Start location: General Ward
+Delivery locations: Surgical Ward, ICU
