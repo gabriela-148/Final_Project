@@ -1,5 +1,6 @@
 from queue import PriorityQueue
 import tkinter as tk
+import time
 
 class Cell:
     def __init__(self, x, y, is_wall=False):
@@ -15,7 +16,7 @@ class Cell:
         return self.f < other.f
 
 class MazeGame:
-    def __init__(self, root, maze, start_locations, delivery_locations):
+    def __init__(self, root, maze, algorithms, start_locations, delivery_locations):
         self.root = root
         self.maze = maze
 
@@ -24,6 +25,9 @@ class MazeGame:
 
         # Store start locations and delivery locations
         self.start_locations, self.delivery_locations = self.extract_ward_locations(start_locations, delivery_locations)
+
+        self.algorithms = algorithms
+        print(self.algorithms)
 
         ward_names_dict = {
             "General Ward": 0,
@@ -50,11 +54,13 @@ class MazeGame:
 
         sorted_ward_dict = self.sort_ward_locations(delivery_locations, priorities)
 
+
+
         # Organize delivery locations by priority
         self.goal_pos_queue = self.build_queue(sorted_ward_dict)
-        self.goal_pos = self.delivery_locations[2]
+        self.goal_pos = self.delivery_locations[0]
 
-        self.cells = [[Cell(x, y, maze[x][y] == 1) for y in range(self.cols)] for x in range(self.rows)]
+        self.cells = [[Cell(x, y, maze[x][y] == 14) for y in range(self.cols)] for x in range(self.rows)]
         print("Start location: ", self.start_locations)
         # Initialize the agent position
         self.agent_pos = self.start_locations
@@ -69,7 +75,11 @@ class MazeGame:
         self.canvas.pack()
 
         self.draw_maze()
-        self.find_path()
+
+        if self.algorithms[0] == "A*":
+            self.run_astar()
+        else:
+            self.run_dij()
 
     def build_queue(self, sorted_ward_dict):
         priority_queue = PriorityQueue()
@@ -90,8 +100,6 @@ class MazeGame:
         for location in delivery_locations.values():
             delivery_wards.append(location)
 
-        print(start_ward)
-        print(delivery_wards)
         return start_ward, delivery_wards
 
     def draw_maze(self):
@@ -109,7 +117,8 @@ class MazeGame:
             10: 'purple',
             11: 'coral',
             12: 'olive',
-            14: 'black'
+            14: 'black',
+            15: 'green2'
         }
 
         for x in range(self.rows):
@@ -124,40 +133,49 @@ class MazeGame:
     ############################################################
     #### Greedy Best-First Search Algorithm
     ############################################################
-    def find_path(self):
+    def run_astar(self):
         open_set = PriorityQueue()
+        deliveryNum = 0
 
         # Add the start state to the queue
         open_set.put((0, self.agent_pos))
         # Continue exploring until the queue is exhausted
         while not open_set.empty():
-            print("Queue:", open_set.queue)
+            #print("Queue:", open_set.queue)
             current_cost, current_pos = open_set.get()
+            print("Current pos from queue: ", current_pos)
 
             # Ensure current_pos is a tuple of integers
             current_pos = (current_pos[0][0]), (current_pos[0][1])
 
             current_cell = self.cells[current_pos[0]][current_pos[1]]
-            print("Goal pos:", self.goal_pos)
+            #print("Goal pos:", self.goal_pos)
 
             # Stop if the current position is the first delivery location
             if current_pos == self.goal_pos:
-                self.reconstruct_path()
                 print("Success! Path found")
-                break
-
+                self.reconstruct_path()
+                time.sleep(2)
+                self.agent_pos = current_pos
+                deliveryNum += 1
+                if deliveryNum < len(self.delivery_locations):
+                    self.goal_pos = self.delivery_locations[deliveryNum]
+                    open_set = PriorityQueue()
+                    open_set.put((0,self.agent_pos))
+                else:
+                    break
             # Agent goes E, W, N, and S, whenever possible
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
                 new_pos = (current_pos[0] + dx, current_pos[1] + dy)
                 # print("Current position: ", current_pos)
-                print("current:", new_pos)
-                print("Cost:", current_cost)
+                #print("current:", new_pos)
+                #print("Cost:", current_cost)
 
                 if 0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols and not self.cells[new_pos[0]][
-                    new_pos[1]].is_wall and self.maze[new_pos[0]][new_pos[1]] == 0:
+                    new_pos[1]].is_wall:
                     # The cost of moving to a new position is 1 unit
                     new_g = current_cell.g + 1
-                    print("Current cell cost", new_g)
+                    #print("Current cell cost", new_g)
 
                     if new_g < self.cells[new_pos[0]][new_pos[1]].g:
                         # Update the path cost g()
@@ -177,8 +195,10 @@ class MazeGame:
     #### This is for the GUI part. No need to modify this unless
     #### screen changes are needed.
     ############################################################
+
     def reconstruct_path(self):
         current_cell = self.cells[self.goal_pos[0]][self.goal_pos[1]]
+
         def draw_path(current_cell):
             if current_cell.parent:
                 x, y = current_cell.x, current_cell.y
@@ -198,6 +218,38 @@ class MazeGame:
 
         # Start drawing the path with the current cell
         draw_path(current_cell)
+
+    '''
+    def reconstruct_path(self):
+        current_cell = self.cells[self.goal_pos[0]][self.goal_pos[1]]
+        path = []
+
+        while current_cell.parent:
+            x, y = current_cell.x, current_cell.y
+            path.append((x, y))
+            current_cell = current_cell.parent
+
+        def draw_path(path):
+
+            amt_goals = len(self.delivery_locations)
+            counter = 0
+            while counter < amt_goals:
+                for x, y in path:
+                    if (x, y) == self.delivery_locations[counter]:
+                        self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
+                                                     (x + 1) * self.cell_size, fill='DimGray')
+                        time.sleep(1.5)
+                        counter = counter + 1
+                    else:
+                        self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
+                                                     (x + 1) * self.cell_size, fill='green2')
+
+                        self.root.update_idletasks()
+                        self.root.after(200)
+
+        # Start drawing the path with the current cell
+        draw_path(path[::-1])
+    '''
 
     def sort_ward_locations(self, ward_dict, priorities):
         sorted_ward_list = []
@@ -289,14 +341,14 @@ def main():
                     for ward_name in line_data:
                         delivery_locations[ward_name] = ward_locations[ward_name]
 
-        return start_locations, delivery_locations
+        return algorithms, start_locations, delivery_locations
 
 
 
 
 
     # Read input file
-    start_locations, delivery_locations = read_input_file("/Users/ghuegel/Downloads/aifinalprojectfiles/astar_input_file.txt")
+    algorithms, start_locations, delivery_locations = read_input_file("/Users/ghuegel/Downloads/aifinalprojectfiles/astar_input_file.txt")
     print(start_locations)
     print(delivery_locations)
 
@@ -307,8 +359,7 @@ def main():
     root = tk.Tk()
     root.title("A* Star Final Project")
 
-    game = MazeGame(root, maze, start_locations, delivery_locations)
-    read_input_file("/Users/ghuegel/Downloads/aifinalprojectfiles/astar_input_file.txt")
+    game = MazeGame(root, maze, algorithms, start_locations, delivery_locations)
 
     root.mainloop()
 
