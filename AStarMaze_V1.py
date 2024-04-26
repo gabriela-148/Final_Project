@@ -24,24 +24,28 @@ class MazeGame:
         self.cols = len(maze[0])
 
         # Store start locations and delivery locations
-        self.start_locations, self.delivery_locations = self.extract_ward_locations(start_locations, delivery_locations)
+        self.start_locations = start_locations
+        self.delivery_locations = delivery_locations
 
         self.algorithms = algorithms
         print(self.algorithms)
 
-        ward_names_dict = {
-            "General Ward": 0,
-            "Surgical Ward": 1,
-            "Admissions": 2,
-            "Emergency": 3,
-            "Maternity": 4,
-            "Oncology": 5,
-            "ICU": 6,
-            "Isolation Ward": 7,
-            "Pediatric Ward": 8,
-            "Burn Ward": 9,
-            "Hematology": 10,
-            "Medical Ward": 11,
+        self.color_map = {
+            0: 'white',
+            1: 'grey',
+            2: 'red',
+            3: 'yellow',
+            4: 'lightskyblue',
+            5: 'pink',
+            6: 'darkgreen',
+            7: 'orange',
+            8: 'powderblue',
+            9: 'darkseagreen',
+            10: 'purple',
+            11: 'coral',
+            12: 'olive',
+            14: 'black',
+            15: 'green2'
         }
 
         priorities = {
@@ -52,23 +56,21 @@ class MazeGame:
             (23, 11): 1, (10, 27): 1
         }
 
-        sorted_ward_dict = self.sort_ward_locations(delivery_locations, priorities)
-
-
+        #sorted_ward_dict = self.sort_ward_locations(delivery_locations, priorities)
 
         # Organize delivery locations by priority
-        self.goal_pos_queue = self.build_queue(sorted_ward_dict)
+        #self.goal_locations = self.build_queue(sorted_ward_dict)
         self.goal_pos = self.delivery_locations[0]
 
         self.cells = [[Cell(x, y, maze[x][y] == 14) for y in range(self.cols)] for x in range(self.rows)]
-        print("Start location: ", self.start_locations)
+        print("Start location: ", self.start_locations[0])
         # Initialize the agent position
-        self.agent_pos = self.start_locations
+        self.agent_pos = (self.start_locations)
 
         #### Start state's initial values for f(n) = g(n) + h(n)
-        self.cells[self.agent_pos[0][0]][self.agent_pos[0][1]].g = 0
-        self.cells[self.agent_pos[0][0]][self.agent_pos[0][1]].h = self.heuristic(self.agent_pos[0])
-        self.cells[self.agent_pos[0][0]][self.agent_pos[0][1]].f = self.heuristic(self.agent_pos[0])
+        self.cells[self.agent_pos[0]][self.agent_pos[1]].g = 0
+        self.cells[self.agent_pos[0]][self.agent_pos[1]].h = self.heuristic(self.agent_pos)
+        self.cells[self.agent_pos[0]][self.agent_pos[1]].f = self.heuristic(self.agent_pos)
 
         self.cell_size = 20
         self.canvas = tk.Canvas(root, width=self.cols * self.cell_size, height=self.rows * self.cell_size, bg='white')
@@ -77,30 +79,31 @@ class MazeGame:
         self.draw_maze()
 
         if self.algorithms[0] == "A*":
-            self.run_astar()
-        else:
-            self.run_dij()
+            index = 0
+            starting_pos = self.start_locations
+            while index < 3:
+                self.run_astar(starting_pos, self.delivery_locations[index])
+                self.reconstruct_path(self.delivery_locations[index])
+                print('startpos', starting_pos)
+                print(self.delivery_locations[index])
+                index = index + 1
+                starting_pos = self.delivery_locations[index-1]
+
+
+
 
     def build_queue(self, sorted_ward_dict):
         priority_queue = PriorityQueue()
+        locations_list = []
         for priority, ward_name, location in sorted_ward_dict:
-            priority_queue.put((priority, ward_name, location))
-        return priority_queue
+            priority_queue.put((location))  # Include priority along with location
 
-    def extract_ward_locations(self, start_locations, delivery_locations):
-        start_ward = []
-        delivery_wards = []
+        while not priority_queue.empty():
+            item = priority_queue.get()
+            locations_list.append(item)
 
-
-        # Extract ward locations from start_locations
-        for ward, location in start_locations.items():
-            start_ward.append(location)
-
-        # Extract ward locations from delivery_locations
-        for location in delivery_locations.values():
-            delivery_wards.append(location)
-
-        return start_ward, delivery_wards
+        print(locations_list)
+        return locations_list
 
     def draw_maze(self):
         color_map = {
@@ -130,55 +133,47 @@ class MazeGame:
     def heuristic(self, pos):
         return (abs(pos[0] - self.goal_pos[0]) + abs(pos[1] - self.goal_pos[1]))
 
-    ############################################################
-    #### Greedy Best-First Search Algorithm
-    ############################################################
-    def run_astar(self):
-        open_set = PriorityQueue()
-        deliveryNum = 0
 
-        deliveryList = []
+
+    ############################################################
+    #### This is for the GUI part. No need to modify this unless
+    #### screen changes are needed.
+    ############################################################
+    ############################################################
+    def run_astar(self, start_pos, end_pos):
+        open_set = PriorityQueue()
 
         # Add the start state to the queue
-        open_set.put((0, self.agent_pos))
+        open_set.put((0, start_pos))
         # Continue exploring until the queue is exhausted
         while not open_set.empty():
-            #print("Queue:", open_set.queue)
+            # print("Queue:", open_set.queue)
             current_cost, current_pos = open_set.get()
-            print("Current pos from queue: ", current_pos)
+            #print("Current pos from queue: ", current_pos)
 
             # Ensure current_pos is a tuple of integers
-            current_pos = (current_pos[0][0]), (current_pos[0][1])
+            current_pos = (current_pos[0], current_pos[1])
+            current_cell = self.cells[(current_pos[0])][(current_pos[1])]
 
-            current_cell = self.cells[current_pos[0]][current_pos[1]]
-            #print("Goal pos:", self.goal_pos)
 
             # Stop if the current position is the first delivery location
-            if current_pos == self.goal_pos:
+            if current_pos == end_pos:
                 print("Success! Path found")
-                self.reconstruct_path()
-                self.agent_pos = [current_pos]
-                deliveryNum += 1
-                if deliveryNum < len(self.delivery_locations):
-                    self.goal_pos = self.delivery_locations[deliveryNum]
-                    time.sleep(2)
-                    self.run_astar()
-                    #open_set = PriorityQueue()
-                    #open_set.put((0,self.agent_pos))
-                else:
-                    break
+                break
+
+
+
             # Agent goes E, W, N, and S, whenever possible
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
                 new_pos = (current_pos[0] + dx, current_pos[1] + dy)
-                # print("Current position: ", current_pos)
-                #print("current:", new_pos)
-                #print("Cost:", current_cost)
+                # print("current:", new_pos)
+                # print("Cost:", current_cost)
 
                 if 0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols and not self.cells[new_pos[0]][
                     new_pos[1]].is_wall:
                     # The cost of moving to a new position is 1 unit
                     new_g = current_cell.g + 1
-                    #print("Current cell cost", new_g)
+                    # print("Current cell cost", new_g)
 
                     if new_g < self.cells[new_pos[0]][new_pos[1]].g:
                         # Update the path cost g()
@@ -191,16 +186,16 @@ class MazeGame:
                         self.cells[new_pos[0]][new_pos[1]].f = 2 * new_g + 1 * self.cells[new_pos[0]][new_pos[1]].h
                         self.cells[new_pos[0]][new_pos[1]].parent = current_cell
 
-                        # Add the new cell to the priority queue
-                        open_set.put([self.cells[new_pos[0]][new_pos[1]].f, [new_pos]])  # Wrap the new_pos tuple in a list
+                        #### Add the new cell to the priority queue
+                        open_set.put((self.cells[new_pos[0]][new_pos[1]].f, new_pos))
 
-    ############################################################
-    #### This is for the GUI part. No need to modify this unless
-    #### screen changes are needed.
-    ############################################################
+        ############################################################
+        #### This is for the GUI part. No need to modify this unless
+        #### screen changes are needed.
+        ############################################################
 
-    def reconstruct_path(self):
-        current_cell = self.cells[self.goal_pos[0]][self.goal_pos[1]]
+    def reconstruct_path(self, goal_pos):
+        current_cell = self.cells[goal_pos[0]][goal_pos[1]]
         path = []
 
         def draw_path(current_cell):
@@ -226,7 +221,6 @@ class MazeGame:
                                          (x + 1) * self.cell_size, fill='green2')
             self.root.update_idletasks()
             self.root.after(200)
-
     '''
     def reconstruct_path(self):
         current_cell = self.cells[self.goal_pos[0]][self.goal_pos[1]]
@@ -337,8 +331,8 @@ def main():
 
     def read_input_file(filename):
         algorithms = []
-        start_locations = {}
-        delivery_locations = {}
+        start_locations = ()
+        delivery_locations = []
 
         ward_locations = {
             "General Ward": (21, 23),
@@ -351,7 +345,7 @@ def main():
             "Isolation Ward": (10, 27),
             "Pediatric Ward": (33, 11),
             "Burn Ward": (22, 11),
-            "Hematogology": (24, 15),
+            "Hematology": (24, 15),
             "Medical Ward": (34, 30),
         }
 
@@ -365,10 +359,15 @@ def main():
                     algorithms.extend(line_data)
                 elif "Start location" in line:
                     for ward_name in line_data:
-                        start_locations[ward_name] = ward_locations[ward_name]
+                        x, y = ward_locations[ward_name]
+                        start_locations = (x,y)
                 elif "Delivery locations" in line:
                     for ward_name in line_data:
-                        delivery_locations[ward_name] = ward_locations[ward_name]
+                        delivery_locations.extend([ward_locations[ward_name]])
+                        print(delivery_locations)
+
+
+
 
         return algorithms, start_locations, delivery_locations
 
