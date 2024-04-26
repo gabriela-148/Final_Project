@@ -50,7 +50,7 @@ class MazeGame:
 
         priorities = {
             (17, 31): 5, (11, 31): 5, (24, 30): 5, (22, 11): 5,
-            (24, 25): 4, (8, 6): 4,
+            (24, 25): 4, (8, 5): 4,
             (24, 15): 3, (33, 11): 3,
             (34, 30): 2, (21, 23): 2,
             (23, 11): 1, (10, 27): 1
@@ -62,10 +62,11 @@ class MazeGame:
         #self.goal_locations = self.build_queue(sorted_ward_dict)
         self.goal_pos = self.delivery_locations[0]
 
-        self.cells = [[Cell(x, y, maze[x][y] == 14) for y in range(self.cols)] for x in range(self.rows)]
-        print("Start location: ", self.start_locations[0])
+        self.cells = [[Cell(x, y, maze[x][y] == 1) for y in range(self.cols)] for x in range(self.rows)]
+
         # Initialize the agent position
         self.agent_pos = (self.start_locations)
+        print("Start location: ", self.agent_pos)
 
         #### Start state's initial values for f(n) = g(n) + h(n)
         self.cells[self.agent_pos[0]][self.agent_pos[1]].g = 0
@@ -80,28 +81,24 @@ class MazeGame:
 
         if self.algorithms[0] == "A*":
             index = 0
-            starting_pos = self.start_locations
-            while index < 3:
-                self.run_astar(starting_pos, self.delivery_locations[index])
-                self.reconstruct_path(self.delivery_locations[index])
-                print('startpos', starting_pos)
-                print(self.delivery_locations[index])
-                index = index + 1
-                starting_pos = self.delivery_locations[index-1]
+            while index < len(self.delivery_locations):
+                path = self.run_astar()
+                self.draw_path(path)
+                self.agent_pos = self.goal_pos
+                self.goal_pos = self.delivery_locations[index]
+                index += 1
+                time.sleep(2)
+                self.clear_path()
 
 
-
+    def clear_path(self):
+        self.canvas.delete('green2')
 
     def build_queue(self, sorted_ward_dict):
         priority_queue = PriorityQueue()
-        locations_list = []
         for priority, ward_name, location in sorted_ward_dict:
-            priority_queue.put((location))  # Include priority along with location
-
-        while not priority_queue.empty():
-            item = priority_queue.get()
-            locations_list.append(item)
-
+            priority_queue.put((priority, location))  # Include priority along with location
+        locations_list = [item[1] for item in sorted_ward_dict]
         print(locations_list)
         return locations_list
 
@@ -127,6 +124,8 @@ class MazeGame:
         for x in range(self.rows):
             for y in range(self.cols):
                 color = color_map[self.maze[x][y]]
+                if self.maze[x][y] == 14:
+                    self.cells[x][y].is_wall = True  # Set is_wall to True for cells with value 14
                 self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
                                              (x + 1) * self.cell_size, fill=color)
 
@@ -140,118 +139,63 @@ class MazeGame:
     #### screen changes are needed.
     ############################################################
     ############################################################
-    def run_astar(self, start_pos, end_pos):
+    def run_astar(self):
         open_set = PriorityQueue()
+        open_set.put((0, self.agent_pos))
+        path = []
 
-        # Add the start state to the queue
-        open_set.put((0, start_pos))
-        # Continue exploring until the queue is exhausted
         while not open_set.empty():
-            # print("Queue:", open_set.queue)
             current_cost, current_pos = open_set.get()
-            #print("Current pos from queue: ", current_pos)
+            current_cell = self.cells[current_pos[0]][current_pos[1]]
 
-            # Ensure current_pos is a tuple of integers
-            current_pos = (current_pos[0], current_pos[1])
-            current_cell = self.cells[(current_pos[0])][(current_pos[1])]
-
-
-            # Stop if the current position is the first delivery location
-            if current_pos == end_pos:
-                print("Success! Path found")
+            if current_pos == self.goal_pos:
+                path.append(current_pos)
+                while current_cell.parent:
+                    path.append((current_cell.parent.x, current_cell.parent.y))
+                    current_cell = current_cell.parent
+                path.reverse()
+                print("Path found!")
                 break
 
-
-
-            # Agent goes E, W, N, and S, whenever possible
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
                 new_pos = (current_pos[0] + dx, current_pos[1] + dy)
-                # print("current:", new_pos)
-                # print("Cost:", current_cost)
 
-                if 0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols and not self.cells[new_pos[0]][
-                    new_pos[1]].is_wall:
-                    # The cost of moving to a new position is 1 unit
+                if 0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols:
+
                     new_g = current_cell.g + 1
-                    # print("Current cell cost", new_g)
 
                     if new_g < self.cells[new_pos[0]][new_pos[1]].g:
-                        # Update the path cost g()
                         self.cells[new_pos[0]][new_pos[1]].g = new_g
-
-                        # Update the heuristic h()
                         self.cells[new_pos[0]][new_pos[1]].h = self.heuristic(new_pos)
-
-                        # Update the evaluation function for the cell n: f(n) = g(n) + h(n)
-                        self.cells[new_pos[0]][new_pos[1]].f = 2 * new_g + 1 * self.cells[new_pos[0]][new_pos[1]].h
+                        self.cells[new_pos[0]][new_pos[1]].f = new_g + self.cells[new_pos[0]][new_pos[1]].h
                         self.cells[new_pos[0]][new_pos[1]].parent = current_cell
-
-                        #### Add the new cell to the priority queue
                         open_set.put((self.cells[new_pos[0]][new_pos[1]].f, new_pos))
+
+        return path
 
         ############################################################
         #### This is for the GUI part. No need to modify this unless
         #### screen changes are needed.
         ############################################################
 
-    def reconstruct_path(self, goal_pos):
-        current_cell = self.cells[goal_pos[0]][goal_pos[1]]
-        path = []
+    def draw_path(self, path):
+        def draw_next_square():
+            nonlocal path_index
+            if path_index < len(path):
+                pos = path[path_index]
+                x, y = pos
+                if (x, y) == self.goal_pos:
+                    self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
+                                                 (x + 1) * self.cell_size, fill='maroon')
+                else:
+                    self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
+                                                 (x + 1) * self.cell_size, fill='green2')
+                path_index += 1
+                self.root.after(100, draw_next_square)  # Schedule the next square to be drawn after 100ms
 
-        def draw_path(current_cell):
-            if current_cell.parent:
-                (x, y) = current_cell.parent.x, current_cell.parent.y  # Switched to parent coordinates
+        path_index = 0
+        draw_next_square()
 
-                # Append the current cell's coordinates after processing the parent
-                path.append((x, y))
-
-                # Schedule the next draw with a delay of 100 milliseconds
-                self.root.after(100, draw_path, current_cell.parent)
-            else:
-                # If we have reached the starting cell, draw the path in reverse order
-                self.draw_reverse_path(path)
-
-        # Start drawing the path with the current cell
-        draw_path(current_cell)
-
-    def draw_reverse_path(self, path):
-        reversed_path = path[::-1]  # Reverse the path list
-        for (x, y) in reversed_path:
-            self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
-                                         (x + 1) * self.cell_size, fill='green2')
-            self.root.update_idletasks()
-            self.root.after(200)
-    '''
-    def reconstruct_path(self):
-        current_cell = self.cells[self.goal_pos[0]][self.goal_pos[1]]
-        path = []
-
-        while current_cell.parent:
-            x, y = current_cell.x, current_cell.y
-            path.append((x, y))
-            current_cell = current_cell.parent
-
-        def draw_path(path):
-
-            amt_goals = len(self.delivery_locations)
-            counter = 0
-            while counter < amt_goals:
-                for x, y in path:
-                    if (x, y) == self.delivery_locations[counter]:
-                        self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
-                                                     (x + 1) * self.cell_size, fill='DimGray')
-                        time.sleep(1.5)
-                        counter = counter + 1
-                    else:
-                        self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
-                                                     (x + 1) * self.cell_size, fill='green2')
-
-                        #self.root.update_idletasks()
-                        self.root.after(200, draw_path, current_cell)
-
-        # Start drawing the path with the current cell
-        draw_path(path.reverse())
-    '''
     def sort_ward_locations(self, ward_dict, priorities):
         sorted_ward_list = []
         for ward_name in ward_dict:
@@ -339,7 +283,7 @@ def main():
             "Surgical Ward": (24, 25),
             "Admissions": (23, 11),
             "Emergency": (11, 31),
-            "Maternity": (8, 6),
+            "Maternity": (8, 5),
             "Oncology": (24, 30),
             "ICU": (17, 31),
             "Isolation Ward": (10, 27),
