@@ -11,6 +11,7 @@ class Cell:
         self.h = 0
         self.f = float("inf")
         self.parent = None
+        self.visited = False
 
     def __lt__(self, other):
         return self.f < other.f
@@ -53,13 +54,10 @@ class MazeGame:
             (24, 25): 4, (8, 5): 4,
             (24, 15): 3, (33, 11): 3,
             (34, 30): 2, (21, 23): 2,
-            (23, 11): 1, (10, 27): 1
+            (17, 34): 1, (10, 27): 1
         }
 
-        #sorted_ward_dict = self.sort_ward_locations(delivery_locations, priorities)
-
         # Organize delivery locations by priority
-        #self.goal_locations = self.build_queue(sorted_ward_dict)
         self.goal_pos = self.delivery_locations[0]
 
         self.cells = [[Cell(x, y, maze[x][y] == 1) for y in range(self.cols)] for x in range(self.rows)]
@@ -79,26 +77,24 @@ class MazeGame:
 
         self.draw_maze()
 
+        for pos in self.delivery_locations:
+            print(pos)
+
         if self.algorithms[0] == "A*":
             index = 0
-            while index < len(self.delivery_locations):
+            for goal_pos in self.delivery_locations:
                 path = self.run_astar()
-                self.draw_path(path)
-                self.agent_pos = self.goal_pos
-                self.goal_pos = self.delivery_locations[index]
-                index += 1
-                time.sleep(2)
-                self.clear_path()
+                self.agent_pos = goal_pos
+                if index+1 >= len(self.delivery_locations):
+                    break
+                self.goal_pos = self.delivery_locations[index+1]
 
 
-    def clear_path(self):
-        self.canvas.delete('green2')
-
-    def build_queue(self, sorted_ward_dict):
+    def build_queue(self, sorted_ward_list):
         priority_queue = PriorityQueue()
-        for priority, ward_name, location in sorted_ward_dict:
+        for priority, ward_name, location in sorted_ward_list:
             priority_queue.put((priority, location))  # Include priority along with location
-        locations_list = [item[1] for item in sorted_ward_dict]
+        locations_list = [item[2] for item in sorted_ward_list]
         print(locations_list)
         return locations_list
 
@@ -145,22 +141,29 @@ class MazeGame:
         path = []
 
         while not open_set.empty():
+            print("not empty queue")
             current_cost, current_pos = open_set.get()
             current_cell = self.cells[current_pos[0]][current_pos[1]]
 
             if current_pos == self.goal_pos:
                 path.append(current_pos)
+                open_set.put((0, current_pos))
                 while current_cell.parent:
                     path.append((current_cell.parent.x, current_cell.parent.y))
                     current_cell = current_cell.parent
                 path.reverse()
+                self.draw_path(path)
                 print("Path found!")
                 break
+
+
+
 
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
                 new_pos = (current_pos[0] + dx, current_pos[1] + dy)
 
-                if 0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols:
+                if (0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols
+                        and not self.maze[new_pos[0]][new_pos[1]] == 14):
 
                     new_g = current_cell.g + 1
 
@@ -179,15 +182,19 @@ class MazeGame:
         ############################################################
 
     def draw_path(self, path):
+        # rest of the code
+
         def draw_next_square():
             nonlocal path_index
             if path_index < len(path):
                 pos = path[path_index]
                 x, y = pos
-                if (x, y) == self.goal_pos:
+                if pos in self.delivery_locations:  # Check if the position is one of the goal locations
+                    self.cells[x][y].visited = True
                     self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
                                                  (x + 1) * self.cell_size, fill='maroon')
                 else:
+                    self.cells[x][y].visited = True
                     self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
                                                  (x + 1) * self.cell_size, fill='green2')
                 path_index += 1
@@ -195,16 +202,6 @@ class MazeGame:
 
         path_index = 0
         draw_next_square()
-
-    def sort_ward_locations(self, ward_dict, priorities):
-        sorted_ward_list = []
-        for ward_name in ward_dict:
-            ward_coords = ward_dict[ward_name]
-            priority = priorities.get(ward_coords, 0)
-            sorted_ward_list.append((priority, ward_name, ward_coords))
-
-        sorted_ward_list.sort(reverse=True)  # Sort in descending order of priority
-        return sorted_ward_list
 
 
 def main():
@@ -278,10 +275,18 @@ def main():
         start_locations = ()
         delivery_locations = []
 
+        priorities = {
+            (17, 31): 1, (11, 31): 1, (24, 30): 1, (22, 11): 1,
+            (24, 25): 2, (8, 5): 2,
+            (24, 15): 3, (33, 11): 3,
+            (34, 30): 4, (21, 23): 4,
+            (17, 34): 5, (10, 27): 5
+        }
+
         ward_locations = {
             "General Ward": (21, 23),
             "Surgical Ward": (24, 25),
-            "Admissions": (23, 11),
+            "Admissions": (17, 34),
             "Emergency": (11, 31),
             "Maternity": (8, 5),
             "Oncology": (24, 30),
@@ -304,20 +309,15 @@ def main():
                 elif "Start location" in line:
                     for ward_name in line_data:
                         x, y = ward_locations[ward_name]
-                        start_locations = (x,y)
+                        start_locations = (x, y)
                 elif "Delivery locations" in line:
                     for ward_name in line_data:
-                        delivery_locations.extend([ward_locations[ward_name]])
-                        print(delivery_locations)
-
-
-
-
+                        delivery_locations.append(ward_locations[ward_name])
+        print("before sorting: ", delivery_locations)
+        # Sorting delivery locations based on their priority
+        delivery_locations.sort(key=lambda loc: priorities[loc], reverse=True)
+        print("after sorting: ", delivery_locations)
         return algorithms, start_locations, delivery_locations
-
-
-
-
 
     # Read input file
     algorithms, start_locations, delivery_locations = read_input_file("/Users/ghuegel/Downloads/aifinalprojectfiles/astar_input_file.txt")
