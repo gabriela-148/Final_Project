@@ -1,6 +1,7 @@
 from queue import PriorityQueue
 import tkinter as tk
 import time
+import sys
 
 class Cell:
     def __init__(self, x, y, is_wall=False):
@@ -78,11 +79,22 @@ class MazeGame:
         self.draw_maze()
 
         if self.algorithms[0] == "A*":
+            print("Running A Star")
             starting = self.agent_pos
             for pos in self.delivery_locations:
                 self.run_astar(starting, pos)
                 starting = pos
                 print("End pos:", pos)
+        elif self.algorithms[0] == "Dijsktras":
+            print("Running Dijkstras")
+            starting = self.agent_pos
+            for pos in self.delivery_locations:
+                self.run_dij(starting, pos)
+                starting = pos
+                print("End pos: ", pos)
+        else:
+            print("Ineligible algorithm type. Please specify whether to use A* or Dijsktra's search algorithm.")
+            
 
 
     def build_queue(self, sorted_ward_list):
@@ -117,46 +129,46 @@ class MazeGame:
                 color = color_map[self.maze[x][y]]
                 if self.maze[x][y] == 1:
                     self.cells[x][y].ward = "Admissions"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 2:
                     self.cells[x][y].ward = "General Ward"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 3:
                     self.cells[x][y].ward = "Emergency"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 4:
                     self.cells[x][y].ward = "Maternity"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 5:
                     self.cells[x][y].ward = "Surgical Ward"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 6:
                     self.cells[x][y].ward = "Oncology"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 7:
                     self.cells[x][y].ward = "ICU"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 8:
                     self.cells[x][y].ward = "Isolation Ward"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 9:
                     self.cells[x][y].ward = "Pediatric Ward"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 10:
                     self.cells[x][y].ward = "Burn Ward"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 11:
                     self.cells[x][y].ward = "Hematology"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 12:
                     self.cells[x][y].ward = "Medical Ward"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 0:
                     self.cells[x][y].ward = "Hallway"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 elif self.maze[x][y] == 14:
                     self.cells[x][y].ward = "Wall"
-                    print(self.cells[x][y].ward)
+                    #print(self.cells[x][y].ward)
                 self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size,
                                              (x + 1) * self.cell_size, fill=color)
 
@@ -167,8 +179,7 @@ class MazeGame:
 
 
     ############################################################
-    #### This is for the GUI part. No need to modify this unless
-    #### screen changes are needed.
+    # A Star Search Algorithm 
     ############################################################
     ############################################################
     def run_astar(self, start, end):
@@ -210,6 +221,54 @@ class MazeGame:
 
                         #### Add the new cell to the priority queue
                         open_set.put((self.cells[new_pos[0]][new_pos[1]].f, new_pos))
+
+
+    ############################################################
+    # Dijsktra's Search Algorithm 
+    ############################################################
+    ############################################################
+
+    def run_dij(self, start, end):
+        
+        open_set = PriorityQueue()
+
+        #### Add the start state to the queue
+        open_set.put((0, start))
+
+        #### Continue exploring until the queue is exhausted
+        while not open_set.empty():
+            current_cost, current_pos = open_set.get()
+            current_cell = self.cells[current_pos[0]][current_pos[1]]
+
+            #### Stop if goal is reached
+            if current_pos == end:
+                print("Path found!")
+                self.reconstruct_path(end)
+                break
+
+            #### Agent goes E, W, N, and S, whenever possible
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                new_pos = (current_pos[0] + dx, current_pos[1] + dy)
+
+                if 0 <= new_pos[0] < self.rows and 0 <= new_pos[1] < self.cols and not self.cells[new_pos[0]][new_pos[1]].is_wall:
+
+                    #### The cost of moving to a new position is 1 unit
+                    new_g = current_cell.g + 1
+
+                    if new_g < self.cells[new_pos[0]][new_pos[1]].g:
+                        ### Update the path cost g()
+                        self.cells[new_pos[0]][new_pos[1]].g = new_g
+
+
+                        ### Update the evaluation function for the cell n: f(n) = g(n)
+                        self.cells[new_pos[0]][new_pos[1]].f = new_g
+                        self.cells[new_pos[0]][new_pos[1]].parent = current_cell
+
+                        #### Add the new cell to the priority queue
+                        open_set.put((self.cells[new_pos[0]][new_pos[1]].f, new_pos))
+
+
+
 
         ############################################################
         #### This is for the GUI part. No need to modify this unless
@@ -337,7 +396,7 @@ def main():
             "Hematology": (24, 16),
             "Medical Ward": (34, 30),
         }
-
+        '''
         with open(filename, 'r') as file:
             for line in file:
                 if line.startswith("Delivery algorithm"):
@@ -356,14 +415,57 @@ def main():
         delivery_locations.sort(key=lambda loc: priorities.get(loc, float('inf')))
         print("after sorting:", delivery_locations)
         return algorithms, start_locations, delivery_locations
+        '''
+        try:
+            with open(filename, 'r') as file:
+                for line in file:
+                    if line.startswith("Delivery algorithm"):
+                        try:
+                            algo_values = line.split(":")[1].rstrip('\n').split(",")
+                            algorithms.extend(algo_values)
+                        except IndexError:
+                            print(f"Error: Incorrect format in line '{line.strip()}'")
+
+                    elif line.startswith("Start location"):
+                        try:
+                            coordinates = line.split(":")[1].strip()[1:-1].split(",")
+                            start_locations = tuple(map(int, coordinates))
+                        except (ValueError, IndexError):
+                            print(f"Error: Invalid start location format in line '{line.strip()}'")
+
+                    elif line.startswith("Delivery locations"):
+                        try:
+                            loc_str = line.split(":")[1].strip()
+                            locations = loc_str[1:-1].split("), (")
+                            for loc in locations:
+                                try:
+                                    x, y = map(int, loc.split(","))
+                                    delivery_locations.append((x, y))
+                                except (ValueError, IndexError):
+                                    print(f"Error: Invalid delivery location format in line '{line.strip()}'")
+                        except IndexError:
+                            print(f"Error: Incorrect format in line '{line.strip()}'")
+                return algorithms, start_locations, delivery_locations
+
+        except FileNotFoundError:
+            print(f"Error: File '{filename}' not found")
+
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
 
     # Read input file
-    algorithms, start_locations, delivery_locations = read_input_file(
-        "/Users/ghuegel/Downloads/aifinalprojectfiles/astar_input_file.txt")
+    if len(sys.argv) != 2:
+        print("Usage error")
+    else:
+        input_file = sys.argv[1]
+        algorithms, start_locations, delivery_locations = read_input_file(input_file)
+
+
+    
+    #algorithms, start_locations, delivery_locations = read_input_file("/Users/sarahgroark/Downloads/astar_input_file.txt")
     print(start_locations)
     print(delivery_locations)
 
-    # Example usage:
 
     # Create maze game instance
     root = tk.Tk()
